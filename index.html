@@ -139,13 +139,14 @@ const ds=(y,m,d)=>`${y}-${pad(m)}-${pad(d)}`;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
 const now=new Date();let ny=now.getFullYear(),nm=now.getMonth()+2;if(nm>12){nm=1;ny++}
-const fresh=()=>({y:ny,m:nm,mode:'multi',staff:[{id:'s1',name:'',off:{},ov:{}}],cur:'s1',periods:[],seq:1});
+const fresh=()=>({y:ny,m:nm,mode:'multi',staff:[{id:'s1',name:'',off:{},ov:{}}],solo:{id:'solo',name:'',off:{},ov:{}},cur:'s1',periods:[],seq:1});
 let S=null;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 if(!S||!Array.isArray(S.staff)||!S.staff.length)S=fresh();
 let hist=[],DL=null,pvT=0,sheetKey='';
 const store=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const ym=()=>`${S.y}-${pad(S.m)}`;
-const cur=()=>S.mode==='single'?S.staff[0]:(S.staff.find(s=>s.id===S.cur)||S.staff[0]);
+if(!S.solo)S.solo={id:'solo',name:'',off:{},ov:{}};
+const cur=()=>S.mode==='single'?S.solo:(S.staff.find(s=>s.id===S.cur)||S.staff[0]);
 const offsOf=(st,k)=>st.off[k||ym()]||[0,4];
 const inLong=d=>S.periods.some(p=>p.s&&p.e&&d>=p.s&&d<=p.e);
 const parse=k=>{const[y,m,d]=k.split('-').map(Number);return{y,m,d,w:new Date(y,m-1,d).getDay()}};
@@ -174,7 +175,9 @@ function mut(fn){hist.push(JSON.stringify(S));if(hist.length>60)hist.shift();fn(
 const msg=t=>{$('msg').textContent=t};
 const offText=st=>{const o=offsOf(st).slice().sort((a,b)=>((a+6)%7)-((b+6)%7));return o.length?o.map(i=>WD[i]).join('・'):'なし'};
 
-function render(){
+let lastYm='',busy=false;
+function render(keepP){if(busy){setTimeout(()=>render(keepP));return}busy=true;try{draw(keepP)}finally{busy=false}}
+function draw(keepP){
   const st=cur(),r=days(st),c=tally(r),offs=offsOf(st);
   document.querySelectorAll('[data-act=mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.mode));
   $('undo').disabled=!hist.length;
@@ -193,9 +196,10 @@ function render(){
   $('sum').innerHTML=[['出勤',c.work,'var(--ink)'],['休み',c.off,'var(--red)'],['有給',c.paid,'var(--blue)'],['勤務なし',c.none,'var(--gray)']]
     .map(([l,v,col])=>`<div><span>${l}</span><b style="color:${col}">${v}<small>日</small></b></div>`).join('')
     +`<div class="tot"><span>勤務時間合計${c.long?`（うち9:00–18:00が${c.long}日）`:''}</span><b>${c.hours}<small>時間</small></b></div>`;
-  $('periods').innerHTML=S.periods.length?S.periods.map((p,i)=>`<div class="prow" data-i="${i}"><select data-f="k" aria-label="区分">${['春休み','夏休み','冬休み'].map(k=>`<option${k===p.k?' selected':''}>${k}</option>`).join('')}</select><input type="date" data-f="s" value="${p.s||''}" aria-label="開始日"><span>〜</span><input type="date" data-f="e" value="${p.e||''}" aria-label="終了日"><button data-act="delp" data-i="${i}">削除</button>${p.s&&p.e&&p.s>p.e?'<p class="warn">終了日が開始日より前になっています</p>':''}</div>`).join(''):'<p class="note">登録なし（平日は 10:00–19:00、土日祝は 9:00–18:00）</p>';
+  if(!keepP)$('periods').innerHTML=S.periods.length?S.periods.map((p,i)=>`<div class="prow" data-i="${i}"><select data-f="k" aria-label="区分">${['春休み','夏休み','冬休み'].map(k=>`<option${k===p.k?' selected':''}>${k}</option>`).join('')}</select><input type="date" data-f="s" value="${p.s||''}" aria-label="開始日"><span>〜</span><input type="date" data-f="e" value="${p.e||''}" min="${p.s||''}" aria-label="終了日"><button data-act="delp" data-i="${i}">削除</button><p class="warn" data-warn>${p.s&&p.e&&p.s>p.e?'終了日が開始日より前になっています':''}</p></div>`).join(''):'<p class="note">登録なし（平日は 10:00–19:00、土日祝は 9:00–18:00）</p>';
   $('rnote').textContent=`対象：${S.mode==='multi'?(st.name||'氏名未入力'):'自分'}　1日だけなら終了日は空欄で構いません。`;
-  if(!$('rs').value||!$('rs').value.startsWith(ym())){$('rs').value=ds(S.y,S.m,1);$('re').value=''}
+  if(ym()!==lastYm||!$('rs').value){lastYm=ym();$('rs').value=ds(S.y,S.m,1);$('re').value=''}
+  $('re').min=$('rs').value
   const ovs=Object.keys(st.ov).filter(k=>k.startsWith(ym())).sort();
   $('ovs').innerHTML=ovs.length?ovs.map(k=>{const p=parse(k);return`<li><span>${p.m}/${p.d}（${WD[p.w]}）　<b>${TY[st.ov[k]].l}</b></span><button data-act="delo" data-d="${k}" aria-label="${p.m}月${p.d}日の指定を解除">解除</button></li>`}).join(''):'<li><span class="note" style="margin:0">この月の個別指定はありません</span></li>';
   $('staffpanel').hidden=S.mode==='single';
@@ -296,9 +300,15 @@ document.addEventListener('click',async ev=>{
     await saveFile(fname(a),blob)}catch(e){msg('作成に失敗しました：'+(e&&e.message||e))}}
 });
 document.addEventListener('change',ev=>{const t=ev.target,st=cur();
-  if(t.id==='nm1')mut(()=>{st.name=t.value.trim()});
-  else if(t.dataset.sid)mut(()=>{const s=S.staff.find(x=>x.id===t.dataset.sid);if(s)s.name=t.value.trim()});
-  else if(t.dataset.f){const i=+t.closest('.prow').dataset.i;mut(()=>{S.periods[i][t.dataset.f]=t.value})}
+  if(t.id==='nm1'){if(st.name!==t.value.trim())mut(()=>{st.name=t.value.trim()})}
+  else if(t.dataset.sid){const s=S.staff.find(x=>x.id===t.dataset.sid);if(s&&s.name!==t.value.trim())mut(()=>{s.name=t.value.trim()})}
+  else if(t.dataset.f){const row=t.closest('.prow'),i=+row.dataset.i,p=S.periods[i],f=t.dataset.f;if(!p)return;
+    hist.push(JSON.stringify(S));p[f]=t.value;
+    const e=row.querySelector('[data-f=e]');
+    if(f==='s'&&t.value){e.min=t.value;if(!e.value||e.value<t.value){e.value=t.value;p.e=t.value}}
+    row.querySelector('[data-warn]').textContent=p.s&&p.e&&p.s>p.e?'終了日が開始日より前になっています':'';
+    store();render(true)}
+  else if(t.id==='rs'){const e=$('re');e.min=t.value;if(t.value&&(!e.value||e.value<t.value))e.value=t.value}
 });
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('sheet').hidden)closeSheet()});
 render();
