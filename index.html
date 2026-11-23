@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>勤務表 作成</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 実務の道具。落ち着いて、迷わず、大きく押せる。
+   IDEA: 事務所の壁に貼る紙の月間勤務表。種別は赤・青・グレーの印。
+   PICTURE: 月間カレンダーそのもの。開いた瞬間に今月の勤務が見える。
+   COLOUR and TYPE: 白地に墨色、休み=赤・有給=青・勤務なし=グレー、長期休暇=琥珀の下線。BIZ UDPゴシック。
+   LAYOUT: 年月→休みの曜日→カレンダー→集計と保存→詳細設定→印刷イメージ。 */
+:root{color-scheme:light dark;
+--bg:light-dark(#fff,#16181b);--ink:light-dark(#1c1e21,#eceef0);--sub:light-dark(#5b6168,#a6adb5);
+--line:light-dark(#d6dae0,#353940);--card:light-dark(#f4f5f7,#1f2226);
+--red:light-dark(#c4322a,#ff8277);--redbg:light-dark(#fdebe8,#3b201e);
+--blue:light-dark(#2857c2,#8fb0ff);--bluebg:light-dark(#e7eefc,#1c2742);
+--gray:light-dark(#666b72,#aab0b7);--graybg:light-dark(#eceef1,#2b2e33);
+--long:light-dark(#c27c12,#f2b85b)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "BIZ UDPGothic","Hiragino Sans","Yu Gothic",sans-serif;overflow-x:clip}
+.band{padding:clamp(18px,3vw,36px) max(4vw,14px)}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font-size:20px;margin:0}h2{font-size:19px;margin:0 0 10px}
+button,select,input{font:inherit;font-size:16px;color:inherit}
+button{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--bg);cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+button:disabled{opacity:.4;cursor:default}
+.pri{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
+select,input[type=date],input[type=text]{min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.top{border-bottom:1px solid var(--line);padding-bottom:14px}
+.row1{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{border:0;min-height:38px}.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg);font-weight:700}
+.mn{display:flex;align-items:center;gap:12px;margin:14px 0 10px}
+.mn button{width:48px;padding:0;font-size:24px}
+#ym{font-size:clamp(28px,5vw,44px);line-height:1.05;white-space:nowrap}
+#who{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
+.namef{display:flex;gap:10px;align-items:center;font-weight:700}.namef input{width:min(320px,70vw)}
+.offrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:14px}
+.offrow small{color:var(--sub);font-weight:400}
+.w7{display:flex;gap:6px;flex-wrap:wrap}.w7 button{width:46px;padding:0;font-weight:700}
+.w7 button[aria-pressed=true]{background:var(--red);border-color:var(--red);color:#fff}
+.warn{color:var(--red);font-size:14px;margin:0;width:100%}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.wh{background:var(--card);text-align:center;font-size:14px;font-weight:700;padding:8px 0}
+.c{border:0;border-radius:0;background:var(--bg);min-height:100px;padding:8px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;position:relative}
+.e{background:var(--card)}
+.hn{font-size:13px;line-height:1.2;color:var(--red);margin-top:-4px}
+.dn{font-size:20px;font-weight:700;line-height:1}
+.tl{font-size:15px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}.ts{display:none;font-size:13px;font-weight:700;white-space:nowrap}
+.t-off{background:var(--redbg);color:var(--red)}.t-paid{background:var(--bluebg);color:var(--blue)}.t-none{background:var(--graybg);color:var(--gray)}
+.lg{box-shadow:inset 0 -5px 0 var(--long)}
+.ov::after{content:"";position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:currentColor}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px;color:var(--sub);margin:10px 0 0}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:5px;border:1px solid var(--line)}
+.sumband{background:var(--card)}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+.sum div{background:var(--bg);border-radius:12px;padding:12px 14px}
+.sum span{display:block;font-size:14px;color:var(--sub)}.sum b{font-size:28px;font-variant-numeric:tabular-nums}.sum b small{font-size:15px;margin-left:2px}
+.sum .tot{grid-column:span 2}.sum .tot b{font-size:36px}
+.out{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.msg{min-height:1.5em;margin:8px 0 0;font-size:15px}
+.set{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:28px}
+.note{color:var(--sub);font-size:14px;margin:0 0 10px}
+.prow,.srow,.rf{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.list{list-style:none;padding:0;margin:10px 0 0}
+.list li{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--line);padding:4px 0}
+.pv img{width:100%;max-width:900px;display:block;border:1px solid var(--line);border-radius:6px;background:#fff}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;z-index:9}
+.sheet[hidden]{display:none}
+.sheet>div{background:var(--bg);width:min(520px,100%);border-radius:18px 18px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
+.sheet h3{margin:0 0 4px;font-size:22px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.g2 button{min-height:60px;font-size:18px;font-weight:700}
+.g2 [aria-pressed=true]{outline:3px solid currentColor;outline-offset:-3px}
+@media(max-width:860px){.tl{display:none}.ts{display:block}}
+@media(max-width:600px){.w7{gap:5px}.w7 button{width:42px}.c{min-height:66px;padding:6px 4px;gap:4px}.dn{font-size:16px}.ov::after{top:6px;right:5px;width:6px;height:6px}.hn{font-size:0;margin:0}.hn::before{content:"祝";font-size:13px;font-weight:700}.sum .tot{grid-column:1/-1}}
+@media(prefers-reduced-motion:no-preference){.c{transition:background-color .2s}}
+</style>
+</head>
+<body>
+<header class="band top"><div class="wrap">
+  <div class="row1">
+    <h1>勤務表</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="seg" role="group" aria-label="形態"><button data-act="mode" data-v="multi">複数人</button><button data-act="mode" data-v="single">一人用</button></div>
+      <button data-act="undo" id="undo">元に戻す</button>
+    </div>
+  </div>
+  <div class="mn"><button data-act="prev" aria-label="前の月">‹</button><div id="ym"></div><button data-act="next" aria-label="次の月">›</button></div>
+  <div id="who"></div>
+</div></header>
+<main>
+<section class="band"><div class="wrap">
+  <div class="offrow"><b id="offlabel"></b><div class="w7" id="offs"></div><p class="warn" id="offwarn"></p></div>
+  <div class="cal" id="cal"></div>
+  <p class="legend"><span><i style="background:var(--redbg)"></i>休み</span><span><i style="background:var(--bluebg)"></i>有給</span><span><i style="background:var(--graybg)"></i>勤務なし</span><span><i style="background:var(--long)"></i>9:00–18:00の日（土日祝・長期休暇）</span><span>● 個別に指定した日</span></p>
+  <p class="note" style="margin-top:6px">日付をタップすると、その日だけ出勤・休み・有給・勤務なしを選び直せます。祝日は自動で判定します（出勤なら9:00–18:00）。祝日を休みにする日は、タップして指定してください。</p>
+</div></section>
+<section class="band sumband"><div class="wrap">
+  <div class="sum" id="sum"></div>
+  <div class="out"><button class="pri" data-act="pdf">PDFを保存（A4横）</button><button data-act="html">印刷用ページを保存</button></div>
+  <p class="msg" id="msg" role="status"></p>
+</div></section>
+<section class="band"><div class="wrap set">
+  <div><h2>長期休暇期間</h2><p class="note">春・夏・冬休みの期間を日付で入れます。期間内の出勤日は平日も 9:00–18:00 になります。土日祝はもともと 9:00–18:00、平日は 10:00–19:00（どちらも実働8時間・休憩1時間）。</p>
+    <div id="periods"></div><button data-act="addp">＋ 期間を追加</button></div>
+  <div><h2>有給・勤務なしをまとめて指定</h2><p class="note" id="rnote"></p>
+    <div class="rf"><select id="rt"><option value="paid">有給</option><option value="none">勤務なし</option><option value="off">休み</option><option value="work">出勤</option></select>
+      <input type="date" id="rs" aria-label="開始日"><span>〜</span><input type="date" id="re" aria-label="終了日"></div>
+    <div class="rf"><button class="pri" data-act="rapply">指定する</button><button data-act="rclear">この期間の指定を解除</button></div>
+    <ul class="list" id="ovs"></ul></div>
+  <div id="staffpanel"><h2>スタッフ</h2><p class="note">氏名が空欄のときは、PDFの氏名欄を記入欄として空けます。</p><div id="staff"></div><button data-act="adds">＋ スタッフを追加</button></div>
+</div></section>
+<section class="band pv"><div class="wrap">
+  <h2>印刷イメージ（A4横・1枚）</h2>
+  <img id="pv" alt="勤務表の印刷イメージ">
+  <p class="note" style="margin-top:8px">保存ボタンが使えない環境では、この画像を長押しして保存・印刷できます。</p>
+</div></section>
+</main>
+<div class="sheet" id="sheet" hidden><div role="dialog" aria-modal="true" aria-labelledby="shT">
+  <h3 id="shT"></h3><p class="note" id="shN"></p>
+  <div class="g2" id="shB"></div>
+  <button data-act="close" style="width:100%">閉じる</button>
+</div></div>
+<script>
+{
+const WD='日月火水木金土'.split('');
+const TY={work:{l:'出勤',s:'出勤'},off:{l:'休み',s:'休み'},paid:{l:'有給',s:'有給'},none:{l:'勤務なし',s:'なし'}};
+const KEY='kinmuhyo-v1', FONT='"BIZ UDPGothic","Hiragino Sans","Yu Gothic",sans-serif';
+const pad=n=>String(n).padStart(2,'0');
+const ds=(y,m,d)=>`${y}-${pad(m)}-${pad(d)}`;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+const now=new Date();let ny=now.getFullYear(),nm=now.getMonth()+2;if(nm>12){nm=1;ny++}
+const fresh=()=>({y:ny,m:nm,mode:'multi',staff:[{id:'s1',name:'',off:{},ov:{}}],cur:'s1',periods:[],seq:1});
+let S=null;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!Array.isArray(S.staff)||!S.staff.length)S=fresh();
+let hist=[],DL=null,pvT=0,sheetKey='';
+const store=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const ym=()=>`${S.y}-${pad(S.m)}`;
+const cur=()=>S.mode==='single'?S.staff[0]:(S.staff.find(s=>s.id===S.cur)||S.staff[0]);
+const offsOf=(st,k)=>st.off[k||ym()]||[0,4];
+const inLong=d=>S.periods.some(p=>p.s&&p.e&&d>=p.s&&d<=p.e);
+const parse=k=>{const[y,m,d]=k.split('-').map(Number);return{y,m,d,w:new Date(y,m-1,d).getDay()}};
+const baseFor=(st,k)=>{const p=parse(k);return offsOf(st,`${p.y}-${pad(p.m)}`).includes(p.w)?'off':'work'};
+const HC={};
+function holidays(y){if(HC[y])return HC[y];const h={},add=(m,d,n)=>{h[ds(y,m,d)]=n};
+  const nthMon=(m,n)=>{const f=new Date(y,m-1,1).getDay();return 1+((8-f)%7)+(n-1)*7};
+  const q=Math.floor((y-1980)/4),ve=Math.floor(20.8431+0.242194*(y-1980)-q),ae=Math.floor(23.2488+0.242194*(y-1980)-q);
+  add(1,1,'元日');add(1,nthMon(1,2),'成人の日');add(2,11,'建国記念の日');add(2,23,'天皇誕生日');add(3,ve,'春分の日');
+  add(4,29,'昭和の日');add(5,3,'憲法記念日');add(5,4,'みどりの日');add(5,5,'こどもの日');add(7,nthMon(7,3),'海の日');
+  add(8,11,'山の日');add(9,nthMon(9,3),'敬老の日');add(9,ae,'秋分の日');add(10,nthMon(10,2),'スポーツの日');
+  add(11,3,'文化の日');add(11,23,'勤労感謝の日');
+  const key=dt=>ds(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
+  for(let m=1;m<=12;m++)for(let d=2;d<=30;d++){const t=new Date(y,m-1,d);if(t.getMonth()!==m-1||t.getDay()===0||h[key(t)])continue;
+    const a=new Date(y,m-1,d-1),b=new Date(y,m-1,d+1);if(h[key(a)]&&h[key(b)])h[key(t)]='国民の休日'}
+  Object.keys(h).sort().forEach(k=>{const p=parse(k);if(p.w!==0)return;const t=new Date(p.y,p.m-1,p.d+1);while(h[key(t)])t.setDate(t.getDate()+1);if(t.getFullYear()===y)h[key(t)]='振替休日'});
+  return HC[y]=h}
+const holName=k=>holidays(+k.slice(0,4))[k]||'';
+function days(st){const n=new Date(S.y,S.m,0).getDate(),r=[];
+  for(let d=1;d<=n;d++){const k=ds(S.y,S.m,d),w=new Date(S.y,S.m-1,d).getDay(),base=baseFor(st,k),t=st.ov[k]||base,hn=holName(k),
+    lg=t==='work'&&(w===0||w===6||!!hn||inLong(k));
+    r.push({d,k,w,t,lg,hn,ovr:!!st.ov[k],tm:t==='work'?(lg?'9:00–18:00':'10:00–19:00'):'',sh:lg?'9–18':'10–19'})}
+  return r}
+function tally(r){const c={work:0,off:0,paid:0,none:0,long:0};r.forEach(x=>{c[x.t]++;if(x.lg)c.long++});c.hours=c.work*8;return c}
+function mut(fn){hist.push(JSON.stringify(S));if(hist.length>60)hist.shift();fn();store();render()}
+const msg=t=>{$('msg').textContent=t};
+const offText=st=>{const o=offsOf(st).slice().sort((a,b)=>((a+6)%7)-((b+6)%7));return o.length?o.map(i=>WD[i]).join('・'):'なし'};
+
+function render(){
+  const st=cur(),r=days(st),c=tally(r),offs=offsOf(st);
+  document.querySelectorAll('[data-act=mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.mode));
+  $('undo').disabled=!hist.length;
+  $('ym').innerHTML=`<b>${S.y}</b>年 <b>${S.m}</b>月`;
+  $('who').innerHTML=S.mode==='single'
+    ?`<label class="namef">氏名<input type="text" id="nm1" value="${esc(st.name)}" placeholder="空欄なら記入欄で印刷" autocomplete="off"></label>`
+    :S.staff.map(s=>`<button class="chip" data-act="pick" data-id="${s.id}" aria-pressed="${s.id===st.id}">${esc(s.name||'氏名未入力')}</button>`).join('');
+  $('offlabel').innerHTML=`休みの曜日 <small>${S.m}月${S.mode==='multi'?'・'+esc(st.name||'氏名未入力'):''}</small>`;
+  $('offs').innerHTML=WD.map((w,i)=>`<button data-act="off" data-w="${i}" aria-pressed="${offs.includes(i)}" aria-label="${w}曜日を休みにする">${w}</button>`).join('');
+  $('offwarn').textContent=offs.length!==2?`週の休みが${offs.length}日になっています（基本は2日）`:'';
+  const first=new Date(S.y,S.m-1,1).getDay(),cells=WD.map(w=>`<div class="wh">${w}</div>`);
+  for(let i=0;i<first;i++)cells.push('<div class="e"></div>');
+  r.forEach(x=>cells.push(`<button class="c t-${x.t}${x.lg?' lg':''}${x.ovr?' ov':''}" data-act="day" data-d="${x.k}" aria-label="${x.d}日 ${x.hn} ${TY[x.t].l} ${x.tm}"><span class="dn">${x.d}</span>${x.hn?`<span class="hn">${x.hn}</span>`:''}<span class="tl">${x.t==='work'?x.tm:TY[x.t].l}</span><span class="ts">${x.t==='work'?x.sh:TY[x.t].s}</span></button>`));
+  while((cells.length-7)%7)cells.push('<div class="e"></div>');
+  $('cal').innerHTML=cells.join('');
+  $('sum').innerHTML=[['出勤',c.work,'var(--ink)'],['休み',c.off,'var(--red)'],['有給',c.paid,'var(--blue)'],['勤務なし',c.none,'var(--gray)']]
+    .map(([l,v,col])=>`<div><span>${l}</span><b style="color:${col}">${v}<small>日</small></b></div>`).join('')
+    +`<div class="tot"><span>勤務時間合計${c.long?`（うち9:00–18:00が${c.long}日）`:''}</span><b>${c.hours}<small>時間</small></b></div>`;
+  $('periods').innerHTML=S.periods.length?S.periods.map((p,i)=>`<div class="prow" data-i="${i}"><select data-f="k" aria-label="区分">${['春休み','夏休み','冬休み'].map(k=>`<option${k===p.k?' selected':''}>${k}</option>`).join('')}</select><input type="date" data-f="s" value="${p.s||''}" aria-label="開始日"><span>〜</span><input type="date" data-f="e" value="${p.e||''}" aria-label="終了日"><button data-act="delp" data-i="${i}">削除</button>${p.s&&p.e&&p.s>p.e?'<p class="warn">終了日が開始日より前になっています</p>':''}</div>`).join(''):'<p class="note">登録なし（平日は 10:00–19:00、土日祝は 9:00–18:00）</p>';
+  $('rnote').textContent=`対象：${S.mode==='multi'?(st.name||'氏名未入力'):'自分'}　1日だけなら終了日は空欄で構いません。`;
+  if(!$('rs').value||!$('rs').value.startsWith(ym())){$('rs').value=ds(S.y,S.m,1);$('re').value=''}
+  const ovs=Object.keys(st.ov).filter(k=>k.startsWith(ym())).sort();
+  $('ovs').innerHTML=ovs.length?ovs.map(k=>{const p=parse(k);return`<li><span>${p.m}/${p.d}（${WD[p.w]}）　<b>${TY[st.ov[k]].l}</b></span><button data-act="delo" data-d="${k}" aria-label="${p.m}月${p.d}日の指定を解除">解除</button></li>`}).join(''):'<li><span class="note" style="margin:0">この月の個別指定はありません</span></li>';
+  $('staffpanel').hidden=S.mode==='single';
+  $('staff').innerHTML=S.staff.map(s=>`<div class="srow"><input type="text" data-sid="${s.id}" value="${esc(s.name)}" placeholder="氏名" aria-label="氏名"><button data-act="dels" data-id="${s.id}"${S.staff.length<2?' disabled':''}>削除</button></div>`).join('');
+  clearTimeout(pvT);pvT=setTimeout(()=>sheetCanvas().then(cv=>{$('pv').src=cv.toDataURL('image/jpeg',.85)}).catch(()=>{}),300);
+}
+
+function openSheet(k){const st=cur(),p=parse(k),base=baseFor(st,k),t=st.ov[k]||base;sheetKey=k;
+  $('shT').textContent=`${p.m}月${p.d}日（${WD[p.w]}）`;
+  $('shN').textContent=`曜日ルールでは「${TY[base].l}」の日です。`+(st.ov[k]?'いまは個別に指定しています。':'');
+  $('shB').innerHTML=Object.keys(TY).map(x=>`<button class="t-${x}" data-act="set" data-t="${x}" aria-pressed="${x===t}">${TY[x].l}</button>`).join('');
+  $('sheet').hidden=false;$('shB').querySelector('[aria-pressed=true]').focus()}
+const closeSheet=()=>{$('sheet').hidden=true};
+
+function eachDay(a,b,fn){if(!a)return 0;if(!b||b<a)b=a;const p=parse(a),d=new Date(p.y,p.m-1,p.d);let n=0;
+  while(n<400){const k=ds(d.getFullYear(),d.getMonth()+1,d.getDate());if(k>b)break;fn(k);n++;d.setDate(d.getDate()+1)}return n}
+
+async function sheetCanvas(){
+  const st=cur(),r=days(st),c=tally(r),W=2339,H=1654,M=110;
+  const txt='0123456789年月勤務表氏名休みの曜日通常長期暇期間実働時間憩出有給なし合計日火水木金土・：｜–〜（）うち祝元成人建国記念天皇誕生春分秋分昭和憲法みどりこども海山敬老スポーツ文化労感謝国民振替'+st.name;
+  try{await Promise.all([document.fonts.load(`700 40px "BIZ UDPGothic"`,txt),document.fonts.load(`400 40px "BIZ UDPGothic"`,txt)])}catch(e){}
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d');
+  const F=(w,s)=>{g.font=`${w} ${s}px ${FONT}`};
+  const rr=(x,y,w,h,rad)=>{g.beginPath();g.roundRect?g.roundRect(x,y,w,h,rad):g.rect(x,y,w,h)};
+  const COL={work:['#ffffff','#1c1e21'],off:['#fde4e1','#c4322a'],paid:['#e1eafc','#2857c2'],none:['#e6e8eb','#5f646b']};
+  g.fillStyle='#fff';g.fillRect(0,0,W,H);g.fillStyle='#1c1e21';g.textBaseline='alphabetic';g.textAlign='left';
+  F(700,76);g.fillText(`${S.y}年 ${S.m}月　勤務表`,M,160);
+  const nx=W-M-820;F(400,38);g.fillText('氏名',nx,160);g.fillRect(nx+100,172,720,3);
+  if(st.name){F(700,60);g.fillText(st.name,nx+130,155,680)}
+  const lp=S.periods.filter(p=>p.s&&p.e&&p.s<=ds(S.y,S.m,31)&&p.e>=ds(S.y,S.m,1)).map(p=>{const a=parse(p.s),b=parse(p.e);return`${p.k} ${a.m}/${a.d}〜${b.m}/${b.d}`});
+  F(400,32);g.fillStyle='#4a4f56';
+  g.fillText(`休みの曜日：${offText(st)}　｜　平日 10:00–19:00　土日祝・長期休暇期間 9:00–18:00${lp.length?'（'+lp.join('、')+'）':''}　｜　実働8時間・休憩1時間`,M,232,W-2*M);
+  const first=new Date(S.y,S.m-1,1).getDay(),rows=Math.ceil((first+r.length)/7),gy=270,hh=58,gb=H-250,cw=(W-2*M)/7,rh=(gb-gy-hh)/rows;
+  g.fillStyle='#eef0f2';g.fillRect(M,gy,W-2*M,hh);F(700,32);g.textAlign='center';
+  WD.forEach((w,i)=>{g.fillStyle=i===0?'#c4322a':i===6?'#2857c2':'#1c1e21';g.fillText(w,M+cw*i+cw/2,gy+41)});
+  for(let s=0;s<rows*7;s++){const x=M+cw*(s%7),y=gy+hh+rh*Math.floor(s/7),dd=r[s-first];
+    if(!dd){g.fillStyle='#f6f7f8';g.fillRect(x,y,cw,rh);continue}
+    const[bg,fg]=COL[dd.t];g.fillStyle=bg;g.fillRect(x,y,cw,rh);
+    if(dd.lg){g.fillStyle='#e9a23b';g.fillRect(x,y+rh-12,cw,12)}
+    g.fillStyle=dd.hn?'#c4322a':dd.t==='work'?'#1c1e21':fg;g.textAlign='left';F(700,46);g.fillText(dd.d,x+20,y+58);
+    if(dd.hn){F(400,26);g.fillStyle='#c4322a';g.fillText(dd.hn,x+20+g.measureText(String(dd.d)).width*1.8+12,y+56,cw-110)}
+    g.textAlign='center';g.fillStyle=fg;
+    if(dd.t==='work'){F(700,Math.min(44,rh*.24));g.fillText(dd.tm,x+cw/2,y+rh*.66)}
+    else{F(700,Math.min(48,rh*.27));g.fillText(TY[dd.t].l,x+cw/2,y+rh*.66)}}
+  g.strokeStyle='#8f959c';g.lineWidth=2;
+  for(let i=0;i<=7;i++){g.beginPath();g.moveTo(M+cw*i,gy);g.lineTo(M+cw*i,gb);g.stroke()}
+  for(let j=0;j<=rows;j++){const y=gy+hh+rh*j;g.beginPath();g.moveTo(M,y);g.lineTo(W-M,y);g.stroke()}
+  g.lineWidth=4;g.strokeRect(M,gy,W-2*M,gb-gy);
+  g.textAlign='left';g.fillStyle='#f4f5f7';rr(M,H-215,W-2*M,96,14);g.fill();
+  const items=[['出勤',c.work+'日','#1c1e21'],['休み',c.off+'日','#c4322a'],['有給',c.paid+'日','#2857c2'],['勤務なし',c.none+'日','#5f646b'],['勤務時間合計',c.hours+'時間','#1c1e21']];
+  let sx=M+40;items.forEach(([l,v,col])=>{F(400,34);g.fillStyle='#4a4f56';g.fillText(l,sx,H-153);sx+=g.measureText(l).width+16;F(700,48);g.fillStyle=col;g.fillText(v,sx,H-151);sx+=g.measureText(v).width+70});
+  let lx=M;F(400,30);[['出勤','#ffffff'],['休み','#fde4e1'],['有給','#e1eafc'],['勤務なし','#e6e8eb'],['9:00–18:00の日（土日祝・長期休暇期間）','#e9a23b']].forEach(([l,col])=>{
+    g.fillStyle=col;g.fillRect(lx,H-90,40,40);g.strokeStyle='#8f959c';g.lineWidth=2;g.strokeRect(lx,H-90,40,40);
+    g.fillStyle='#1c1e21';g.fillText(l,lx+54,H-58);lx+=54+g.measureText(l).width+50});
+  return cv}
+
+function pdfFromJpeg(bytes,w,h){const enc=s=>{const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return u};
+  const parts=[],off=[];let len=0;const add=u=>{parts.push(u);len+=u.length};
+  const obj=(n,s,stream)=>{off[n]=len;add(enc(`${n} 0 obj\n${s}`));if(stream){add(enc('\nstream\n'));add(stream);add(enc('\nendstream'))}add(enc('\nendobj\n'))};
+  const PW=841.89,PH=595.28,cs=`q ${PW} 0 0 ${PH} 0 0 cm /Im0 Do Q`;
+  add(enc('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'));
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');obj(2,'<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  obj(3,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>`);
+  obj(4,`<< /Length ${cs.length} >>`,enc(cs));
+  obj(5,`<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${bytes.length} >>`,bytes);
+  const xr=len;let x='xref\n0 6\n0000000000 65535 f \n';for(let n=1;n<=5;n++)x+=String(off[n]).padStart(10,'0')+' 00000 n \n';
+  add(enc(x+`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xr}\n%%EOF\n`));return new Blob(parts,{type:'application/pdf'})}
+const b64=u=>{const s=atob(u.split(',')[1]),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a};
+const fname=ext=>{const n=cur().name.replace(/[\\/:*?"<>|]/g,'').trim();return`${S.y}年${S.m}月_勤務表${S.mode==='multi'&&n?'_'+n:''}.${ext}`};
+
+async function saveFile(name,blob){
+  if(DL){try{await DL.save({filename:name,data:blob});msg('保存しました：'+name)}
+    catch(e){const k=e&&e.code;msg(k==='declined'?'保存を取りやめました。':k==='rate_limited'?'少し待ってから、もう一度押してください。':'この表示では保存できませんでした。下の印刷イメージを長押しして保存してください。')}return}
+  try{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);msg('ダウンロードを開始しました：'+name)}
+  catch(e){msg('保存できませんでした。下の印刷イメージを長押しして保存してください。')}}
+
+document.addEventListener('click',async ev=>{
+  if(ev.target.id==='sheet'){closeSheet();return}
+  const b=ev.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act,st=cur();
+  if(a==='mode')mut(()=>{S.mode=b.dataset.v});
+  else if(a==='undo'){if(hist.length){S=JSON.parse(hist.pop());store();render();msg('ひとつ前の状態に戻しました。')}}
+  else if(a==='prev'||a==='next')mut(()=>{S.m+=a==='next'?1:-1;if(S.m>12){S.m=1;S.y++}if(S.m<1){S.m=12;S.y--}});
+  else if(a==='pick')mut(()=>{S.cur=b.dataset.id});
+  else if(a==='off')mut(()=>{const w=+b.dataset.w,o=offsOf(st).slice(),i=o.indexOf(w);i<0?o.push(w):o.splice(i,1);st.off[ym()]=o.sort()});
+  else if(a==='day')openSheet(b.dataset.d);
+  else if(a==='set'){const k=sheetKey,t=b.dataset.t;closeSheet();mut(()=>{t===baseFor(st,k)?delete st.ov[k]:st.ov[k]=t})}
+  else if(a==='close')closeSheet();
+  else if(a==='addp')mut(()=>S.periods.push({k:S.m>=11||S.m<=1?'冬休み':S.m<=4?'春休み':'夏休み',s:'',e:''}));
+  else if(a==='delp')mut(()=>S.periods.splice(+b.dataset.i,1));
+  else if(a==='delo')mut(()=>{delete st.ov[b.dataset.d]});
+  else if(a==='rapply'){const t=$('rt').value;let n=0;mut(()=>{n=eachDay($('rs').value,$('re').value,k=>{t===baseFor(st,k)?delete st.ov[k]:st.ov[k]=t})});msg(n?`${n}日分を「${TY[t].l}」にしました。`:'開始日を選んでください。')}
+  else if(a==='rclear'){let n=0;mut(()=>{n=eachDay($('rs').value,$('re').value,k=>{delete st.ov[k]})});msg(n?`${n}日分の個別指定を解除しました。`:'開始日を選んでください。')}
+  else if(a==='adds')mut(()=>{S.seq=(S.seq||1)+1;const id='s'+S.seq+'_'+Date.now().toString(36);S.staff.push({id,name:'',off:{},ov:{}});S.cur=id});
+  else if(a==='dels')mut(()=>{S.staff=S.staff.filter(s=>s.id!==b.dataset.id);if(!S.staff.some(s=>s.id===S.cur))S.cur=S.staff[0].id;msg('削除しました（「元に戻す」で戻せます）。')});
+  else if(a==='pdf'||a==='html'){msg('作成しています…');try{const cv=await sheetCanvas(),u=cv.toDataURL('image/jpeg',.92);
+    const blob=a==='pdf'?pdfFromJpeg(b64(u),cv.width,cv.height)
+      :new Blob([`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(fname('pdf').replace('.pdf',''))}</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}img{width:297mm;max-width:100%;display:block}</style></head><body><img src="${u}" alt="勤務表"></body></html>`],{type:'text/html'});
+    await saveFile(fname(a),blob)}catch(e){msg('作成に失敗しました：'+(e&&e.message||e))}}
+});
+document.addEventListener('change',ev=>{const t=ev.target,st=cur();
+  if(t.id==='nm1')mut(()=>{st.name=t.value.trim()});
+  else if(t.dataset.sid)mut(()=>{const s=S.staff.find(x=>x.id===t.dataset.sid);if(s)s.name=t.value.trim()});
+  else if(t.dataset.f){const i=+t.closest('.prow').dataset.i;mut(()=>{S.periods[i][t.dataset.f]=t.value})}
+});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('sheet').hidden)closeSheet()});
+render();
+(async()=>{try{if(window.claude&&typeof claude.use==='function')DL=await claude.use('downloads')}catch(e){DL=null}})();
+}
+</script>
+</body>
+</html>
